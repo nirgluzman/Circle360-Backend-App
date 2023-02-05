@@ -13,8 +13,7 @@ const siginUser = async (req, res) => {
   try {
     const response = await axios({
       method: "get",
-      //url: `${process.env.dbURL}/user`,
-      url: `http://localhost:8080/user`,
+      url: `${process.env.dbURL}/user`,
       data: { email },
     });
 
@@ -38,8 +37,7 @@ const signupUser = async (req, res) => {
   try {
     const response = await axios({
       method: "post",
-      //url: `${process.env.dbURL}/user`,
-      url: `http://localhost:8080/user`,
+      url: `${process.env.dbURL}/user`,
       data: { email, nickname },
     });
 
@@ -89,8 +87,7 @@ const updateUser = async (req, res) => {
 
     const response = await axios({
       method: "put",
-      //url: `${process.env.dbURL}/user`,
-      url: `http://localhost:8080/user`,
+      url: `${process.env.dbURL}/user`,
       data: {
         email,
         nickname,
@@ -130,8 +127,7 @@ const deleteUser = async (req, res) => {
 
     const response = await axios({
       method: "delete",
-      //url: `${process.env.dbURL}/user/`,
-      url: `http://localhost:8080/user/`,
+      url: `${process.env.dbURL}/user/`,
       data: { email },
     });
 
@@ -154,8 +150,7 @@ const createGroup = async (req, res) => {
 
     const response = await axios({
       method: "post",
-      //url: `${process.env.dbURL}/group/`,
-      url: `http://localhost:8080/group/`,
+      url: `${process.env.dbURL}/group/`,
       data: { email, userID },
     });
 
@@ -164,8 +159,7 @@ const createGroup = async (req, res) => {
 
     await axios({
       method: "post",
-      //url: `${process.env.dbURL}/user/group/${groupID}`,
-      url: `http://localhost:8080/user/group/${groupID}`,
+      url: `${process.env.dbURL}/user/group/${groupID}`,
       data: { email },
     });
 
@@ -188,8 +182,7 @@ const inviteUserToGroup = async (req, res) => {
 
     const response = await axios({
       method: "post",
-      //url: `${process.env.dbURL}/group/user/${groupCode}`,
-      url: `http://localhost:8080/group/user/${groupCode}`,
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
       data: { groupCode, email },
     });
 
@@ -227,8 +220,7 @@ const deleteUserInGroup = async (req, res) => {
     // STEP-3: admin can delete anybody in the group (excepts himself).
     const response = await axios({
       method: "delete",
-      //url: `${process.env.dbURL}/group/user/${groupCode}`,
-      url: `http://localhost:8080/group/user/${groupCode}`,
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
       data: { email },
     });
 
@@ -239,8 +231,7 @@ const deleteUserInGroup = async (req, res) => {
     if (foundMember.accepted) {
       await axios({
         method: "delete",
-        //url: `${process.env.dbURL}/user/group/${response.data.group._id}`,
-        url: `http://localhost:8080/user/group/${response.data.group._id}`,
+        url: `${process.env.dbURL}/user/group/${response.data.group._id}`,
         data: { email },
       });
     }
@@ -265,8 +256,7 @@ const acceptUserInGroup = async (req, res) => {
     // STEP-1: user to accept the invite; accepts fails if invite does not exist.
     const response = await axios({
       method: "put",
-      //url: `${process.env.dbURL}/group/user/${groupCode}`,
-      url: `http://localhost:8080/group/user/${groupCode}`,
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
       data: { email, userID },
     });
 
@@ -275,8 +265,7 @@ const acceptUserInGroup = async (req, res) => {
     // STEP-2: add group to user.
     await axios({
       method: "post",
-      //url: `${process.env.dbURL}/user/group/${groupID}`,
-      url: `http://localhost:8080/user/group/${groupID}`,
+      url: `${process.env.dbURL}/user/group/${groupID}`,
       data: { email, admin: false }, // only admin sends invite, only not-admin can accept invite
     });
 
@@ -309,8 +298,7 @@ const updateGroup = async (req, res) => {
     if (public) {
       await axios({
         method: "put",
-        //url: `${process.env.dbURL}/group/${groupCode}`,
-        url: `http://localhost:8080/group/${groupCode}`,
+        url: `${process.env.dbURL}/group/${groupCode}`,
         data: { public },
       });
     }
@@ -325,8 +313,7 @@ const updateGroup = async (req, res) => {
 
       response = await axios({
         method: "put",
-        //url: `${process.env.dbURL}/user/group/${groupID}`,
-        url: `http://localhost:8080/user/group/${groupID}`,
+        url: `${process.env.dbURL}/user/group/${groupID}`,
         data: { email: req.user.data.user.email, name },
       });
     }
@@ -349,8 +336,7 @@ const getGroup = async (req, res) => {
 
     const response = await axios({
       method: "get",
-      //url: `${process.env.dbURL}/group/${groupCode}`,
-      url: `http://localhost:8080/group/${groupCode}`,
+      url: `${process.env.dbURL}/group/${groupCode}`,
       data: { groupCode },
     });
 
@@ -398,8 +384,7 @@ const deleteGroup = async (req, res) => {
     //STEP-2: delete group in group DB
     await axios({
       method: "delete",
-      //url: `${process.env.dbURL}/group/${groupCode}`,
-      url: `http://localhost:8080/group/${groupCode}`,
+      url: `${process.env.dbURL}/group/${groupCode}`,
     });
 
     // STEP-3: loop through the users and remove the group from myGroups array.
@@ -407,8 +392,7 @@ const deleteGroup = async (req, res) => {
       if (foundGroup.groupID.members[i].accepted) {
         await axios({
           method: "delete",
-          //url: `${process.env.dbURL}/user/group/${groupID}`,
-          url: `http://localhost:8080/user/group/${groupID}`,
+          url: `${process.env.dbURL}/user/group/${groupID}`,
           data: { email: foundGroup.groupID.members[i].email },
         });
       }

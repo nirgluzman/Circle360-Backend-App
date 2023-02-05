@@ -16,8 +16,7 @@ const requireAuth = async (req, res, next) => {
 
     req.user = await axios({
       method: "get",
-      //url: `${process.env.dbURL}/user`,
-      url: `http://localhost:8080/user`,
+      url: `${process.env.dbURL}/user`,
       data: { email },
     });
 
