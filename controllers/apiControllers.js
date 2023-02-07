@@ -5,8 +5,8 @@ const createToken = (email, userID) => {
   return jwt.sign({ email, userID }, process.env.SECRET, { expiresIn: "12h" });
 };
 
-// signin the user
-const siginUser = async (req, res) => {
+// login the user
+const loginUser = async (req, res) => {
   // retrieve the email
   const { email } = req.body;
 
@@ -20,7 +20,7 @@ const siginUser = async (req, res) => {
     // create the token
     const token = createToken(email, response.data.user._id);
 
-    res.status(200).json({ email, token });
+    res.status(200).json({ token });
   } catch (error) {
     res.status(404).json({
       success: false,
@@ -31,7 +31,7 @@ const siginUser = async (req, res) => {
 
 // signup the user
 const signupUser = async (req, res) => {
-  // retrieve the email
+  // retrieve the email and nickname from body
   const { email, nickname } = req.body;
 
   try {
@@ -44,7 +44,7 @@ const signupUser = async (req, res) => {
     // create the token
     const token = createToken(email, response.data.user._id);
 
-    res.status(200).json({ email, token });
+    res.status(200).json({ token });
   } catch (error) {
     res.status(404).json({
       success: false,
@@ -175,20 +175,38 @@ const createGroup = async (req, res) => {
   }
 };
 
-const inviteUserToGroup = async (req, res) => {
+const getGroupLocations = async (req, res) => {
   try {
     const { groupCode } = req.params;
-    const { email } = req.body;
 
     const response = await axios({
-      method: "post",
-      url: `${process.env.dbURL}/group/user/${groupCode}`,
-      data: { groupCode, email },
+      method: "get",
+      url: `${process.env.dbURL}/group/${groupCode}`,
+      data: { groupCode },
     });
+
+    // filter out all users that accepted the invite AND are not in incognito mode
+    const groupNotIncognito = response.data.group.members
+      .filter(
+        (m) =>
+          m.userID.email === req.user.data.user.email ||
+          (m.accepted && !m.userID.incognito)
+      )
+      .map((m) => ({
+        userID: {
+          email: m.userID.email,
+          nickname: m.userID.nickname,
+          location: m.userID.location,
+          profilePictureURL: m.userID.profilePictureURL,
+        },
+      }));
 
     res.status(200).json({
       success: true,
-      message: response.data.group,
+      message: {
+        public: response.data.group.public,
+        group: groupNotIncognito,
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -198,46 +216,40 @@ const inviteUserToGroup = async (req, res) => {
   }
 };
 
-const deleteUserInGroup = async (req, res) => {
+const getGroupMembers = async (req, res) => {
   try {
     const { groupCode } = req.params;
-    const { email } = req.body;
 
-    // STEP-1: check if user is admin.
-    const foundGroup = req.user.data.user.myGroups.find(
-      (m) => m.groupID.groupCode === groupCode
-    );
-    const admin = foundGroup.admin;
+    const response = await axios({
+      method: "get",
+      url: `${process.env.dbURL}/group/${groupCode}`,
+      data: { groupCode },
+    });
 
-    // STEP-2: bad requests - user is not admin OR user is admin but tries to delete himself.
-    if (!admin || req.user.data.user.email === email) {
+    // filter out all users that accepted the invite
+    const groupAccepted = response.data.group.members
+      .filter((m) => m.userID.email !== req.user.data.user.email && m.accepted)
+      .map((m) => ({
+        userID: {
+          nickname: m.userID.nickname,
+          profilePictureURL: m.userID.profilePictureURL,
+          incognito: m.userID.incognito,
+        },
+      }));
+
+    if (groupAccepted.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "bad request - admin",
+        message: "no members",
       });
     }
 
-    // STEP-3: admin can delete anybody in the group (excepts himself).
-    const response = await axios({
-      method: "delete",
-      url: `${process.env.dbURL}/group/user/${groupCode}`,
-      data: { email },
-    });
-
-    const foundMember = foundGroup.groupID.members.find(
-      (m) => m.email === email
-    );
-
-    if (foundMember.accepted) {
-      await axios({
-        method: "delete",
-        url: `${process.env.dbURL}/user/group/${response.data.group._id}`,
-        data: { email },
-      });
-    }
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: response.data.group,
+      message: {
+        public: response.data.group.public,
+        group: groupAccepted,
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -247,31 +259,39 @@ const deleteUserInGroup = async (req, res) => {
   }
 };
 
-const acceptUserInGroup = async (req, res) => {
+// get list of pending invites
+const getGroupInvites = async (req, res) => {
   try {
     const { groupCode } = req.params;
-    const email = req.user.data.user.email;
-    const userID = req.user.data.user._id;
 
-    // STEP-1: user to accept the invite; accepts fails if invite does not exist.
     const response = await axios({
-      method: "put",
-      url: `${process.env.dbURL}/group/user/${groupCode}`,
-      data: { email, userID },
+      method: "get",
+      url: `${process.env.dbURL}/group/${groupCode}`,
+      data: { groupCode },
     });
 
-    const groupID = response.data.group._id;
+    // filter out all users that have not accepted the invite
+    const groupNotAccepted = response.data.group.members
+      .filter((m) => !m.accepted)
+      .map((m) => ({
+        userID: {
+          email: m.userID.email,
+        },
+      }));
 
-    // STEP-2: add group to user.
-    await axios({
-      method: "post",
-      url: `${process.env.dbURL}/user/group/${groupID}`,
-      data: { email, admin: false }, // only admin sends invite, only not-admin can accept invite
-    });
+    if (groupNotAccepted.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "no pending invites",
+      });
+    }
 
-    return res.status(200).json({
+    res.status(200).json({
       success: true,
-      message: response.data.group,
+      message: {
+        public: response.data.group.public,
+        group: groupNotAccepted,
+      },
     });
   } catch (error) {
     res.status(500).json({
@@ -281,7 +301,7 @@ const acceptUserInGroup = async (req, res) => {
   }
 };
 
-// update group - name and public invite (admin)
+// update group - name and public invite (only by admin)
 const updateGroup = async (req, res) => {
   try {
     const { groupCode } = req.params;
@@ -294,8 +314,14 @@ const updateGroup = async (req, res) => {
       });
     }
 
-    // STEP-1: if public field exists, then update public invite in group
-    if (public) {
+    // STEP-1: if admin and public field exists, then update public invite in group
+    // STEP-1.1: check if user is admin.
+    const foundGroup = req.user.data.user.myGroups.find(
+      (m) => m.groupID.groupCode === groupCode
+    );
+    const admin = foundGroup.admin;
+
+    if (public && admin) {
       await axios({
         method: "put",
         url: `${process.env.dbURL}/group/${groupCode}`,
@@ -311,7 +337,7 @@ const updateGroup = async (req, res) => {
 
       const groupID = foundGroup.groupID._id;
 
-      response = await axios({
+      await axios({
         method: "put",
         url: `${process.env.dbURL}/user/group/${groupID}`,
         data: { email: req.user.data.user.email, name },
@@ -321,37 +347,6 @@ const updateGroup = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "group updated succesfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.response.data.error,
-    });
-  }
-};
-
-const getGroup = async (req, res) => {
-  try {
-    const { groupCode } = req.params;
-
-    const response = await axios({
-      method: "get",
-      url: `${process.env.dbURL}/group/${groupCode}`,
-      data: { groupCode },
-    });
-
-    // filter out all users that accepted the invite AND are not in incognito mode
-    const groupNotIncognito = response.data.group.members.filter(
-      (m) => m.accepted && !m.userID.incognito
-    );
-
-    res.status(200).json({
-      success: true,
-      message: {
-        groupCode,
-        public: response.data.group.public,
-        group: groupNotIncognito,
-      },
     });
   } catch (error) {
     res.status(500).json({
@@ -381,7 +376,7 @@ const deleteGroup = async (req, res) => {
       });
     }
 
-    //STEP-2: delete group in group DB
+    // STEP-2: delete group in group DB
     await axios({
       method: "delete",
       url: `${process.env.dbURL}/group/${groupCode}`,
@@ -405,19 +400,130 @@ const deleteGroup = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: "zzz", //error.response.data.error,
+      error: error.response.data.error,
+    });
+  }
+};
+
+const inviteUserToGroup = async (req, res) => {
+  try {
+    const { groupCode } = req.params;
+    const { email } = req.body;
+
+    await axios({
+      method: "post",
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
+      data: { groupCode, email },
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "invite created sucessfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.response.data.error,
+    });
+  }
+};
+
+const acceptUserInGroup = async (req, res) => {
+  try {
+    const { groupCode } = req.params;
+    const email = req.user.data.user.email;
+    const userID = req.user.data.user._id;
+
+    // STEP-1: user to accept the invite; accepts fails if invite does not exist.
+    const response = await axios({
+      method: "put",
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
+      data: { email, userID },
+    });
+
+    const groupID = response.data.group._id;
+
+    // STEP-2: add group to user.
+    await axios({
+      method: "post",
+      url: `${process.env.dbURL}/user/group/${groupID}`,
+      data: { email, admin: false }, // only admin sends invite, only non-admin can accept invite
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "invite accepted - user has been added to group",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.response.data.error,
+    });
+  }
+};
+
+const deleteUserInGroup = async (req, res) => {
+  try {
+    const { groupCode } = req.params;
+    const { email } = req.body;
+
+    // STEP-1: check if user is admin.
+    const foundGroup = req.user.data.user.myGroups.find(
+      (m) => m.groupID.groupCode === groupCode
+    );
+    const admin = foundGroup.admin;
+
+    // STEP-2: bad requests
+    if (
+      (!admin && req.user.data.user.email !== email) ||
+      (admin && req.user.data.user.email === email)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "bad request",
+      });
+    }
+
+    // STEP-3: deleting the user from group DB.
+    await axios({
+      method: "delete",
+      url: `${process.env.dbURL}/group/user/${groupCode}`,
+      data: { email },
+    });
+
+    const foundMember = foundGroup.groupID.members.find(
+      (m) => m.email === email
+    );
+
+    if (foundMember.accepted) {
+      await axios({
+        method: "delete",
+        url: `${process.env.dbURL}/user/group/${response.data.group._id}`,
+        data: { email },
+      });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "user deleted sucessfully",
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.response.data.error,
     });
   }
 };
 
 module.exports = {
-  siginUser,
+  loginUser,
   signupUser,
   getUser,
   updateUser,
   deleteUser,
   createGroup,
-  getGroup,
+  getGroupLocations,
+  getGroupMembers,
+  getGroupInvites,
   updateGroup,
   deleteGroup,
   inviteUserToGroup,
