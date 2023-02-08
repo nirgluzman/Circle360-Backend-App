@@ -4,6 +4,7 @@ const requireAuth = require("../middleware/requireAuth");
 const {
   loginUser,
   signupUser,
+  upsertUser,
   getUser,
   updateUser,
   deleteUser,
@@ -22,6 +23,7 @@ const app = express.Router();
 
 app.route("/user/login").post(loginUser);
 app.route("/user/signup").post(signupUser);
+app.route("/user/token").put(upsertUser);
 
 app.use(requireAuth);
 

@@ -53,6 +53,29 @@ const signupUser = async (req, res) => {
   }
 };
 
+// upsertUser - unified login/signup
+const upsertUser = async (req, res) => {
+  // retrieve the email and nickname from body
+  const { email, nickname } = req.body;
+  try {
+    const response = await axios({
+      method: "put",
+      url: `${process.env.dbURL}/user/upsert`,
+      data: { email, nickname },
+    });
+
+    // create the token
+    const token = createToken(email, response.data.user._id);
+
+    res.status(200).json({ token });
+  } catch (error) {
+    res.status(404).json({
+      success: false,
+      error: error.response.data.error,
+    });
+  }
+};
+
 const getUser = (req, res) => {
   const data = ({
     email,
@@ -517,6 +540,7 @@ const deleteUserInGroup = async (req, res) => {
 module.exports = {
   loginUser,
   signupUser,
+  upsertUser,
   getUser,
   updateUser,
   deleteUser,
